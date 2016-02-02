@@ -1195,16 +1195,22 @@ module Net
       def query_udp(packet, packet_data)
         socket4 = UDPSocket.new
         socket4.bind(@config[:source_address].to_s,@config[:source_port])
-        socket6 = UDPSocket.new(Socket::AF_INET6)
-        socket6.bind(@config[:source_address_inet6].to_s,@config[:source_port])
-
+        begin
+          socket6 = UDPSocket.new(Socket::AF_INET6)
+          socket6.bind(@config[:source_address_inet6].to_s,@config[:source_port])
+          v6_supported = true
+        # rescue if server doesnt support IPV6 (Address family not supported by protocol - socket(2) - udp)
+        rescue Exception => ex
+          v6_supported = false
+          @logger.warn "#{ex}"
+        end
         ans = nil
         response = ""
         @config[:nameservers].each do |ns|
           begin
             @config[:udp_timeout].timeout do
               @logger.info "Contacting nameserver #{ns} port #{@config[:port]}"
-              ans = if ns.ipv6?
+              ans = if ns.ipv6? && v6_supported
                 socket6.send(packet_data, 0, ns.to_s, @config[:port])
                 socket6.recvfrom(@config[:packet_size])
               else
